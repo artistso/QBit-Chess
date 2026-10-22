@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Quantum Wizard Chess 3D</string>
+    <string name="white_turn">White to Move</string>
+    <string name="black_turn">Black to Move</string>
+    <string name="check_warning">CHECK!</string>
+    <string name="checkmate_banner">CHECKMATE!</string>
+    <string name="quantum_lab">Quantum Lab</string>
+    <string name="hodge_cage">Hodge Cages</string>
+    <string name="multi_hit">Decoherence Multi-Hit</string>
+    <string name="quantum_sound">Quantum Audio Synthesizer</string>
+    <string name="entangle_random">Entangle Random Pair</string>
+    <string name="clear_entanglements">Clear Entanglements</string>
+    <string name="ai_move">AI Move</string>
+    <string name="reset_game">Reset Board</string>
+    <string name="undo_move">Undo</string>
+</resources>
