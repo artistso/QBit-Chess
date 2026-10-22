@@ -9,6 +9,38 @@ interface EntangledPairInfo {
   coherenceB: number;
 }
 
+interface HyperTelemetry {
+  active: boolean;
+  level: number;
+  levelKey: string;
+  levelName: string;
+  tagline: string;
+  sigil: string;
+  fold: number;
+  foldDegrees: number;
+  boards: number;
+  playableFaces: number;
+  observables: string[];
+  mass: number;
+  lensing: number;
+  coneOpacity: number;
+  conesRevealed: boolean;
+  exoOpacity: number;
+  tesseractOpacity: number;
+  photons: number;
+  spin: number;
+  levelCount: number;
+}
+
+const HYPER_LEVEL_INFO = [
+  { id: 0, sigil: '○', name: 'Dormant', sub: 'The altar sleeps' },
+  { id: 1, sigil: '⟁', name: 'Fold', sub: 'Six boards, one box' },
+  { id: 2, sigil: '◈', name: 'Interior', sub: 'Inside the tesseract' },
+  { id: 3, sigil: '◉', name: 'Apex', sub: 'The hidden cones' },
+  { id: 4, sigil: '⟐', name: 'Exterior', sub: 'Outside the tesseract' },
+  { id: 5, sigil: '✶', name: 'Hyperwild', sub: 'Every plane at once' }
+];
+
 export default function App() {
   const initializedRef = useRef(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
@@ -16,9 +48,18 @@ export default function App() {
   const [hodgeCageActive, setHodgeCageActive] = useState(true);
   const [multiHitActive, setMultiHitActive] = useState(true);
   const [soundActive, setSoundActive] = useState(true);
-  const [activeTab, setActiveTab] = useState<'booms' | 'hodge' | 'decoherence' | 'entangle'>('booms');
+  const [activeTab, setActiveTab] = useState<
+    'booms' | 'hodge' | 'decoherence' | 'entangle' | 'hyperfold'
+  >('booms');
   const [entangledPairs, setEntangledPairs] = useState<EntangledPairInfo[]>([]);
   const [lastSonicPlayed, setLastSonicPlayed] = useState<string | null>(null);
+  const [hyperTelemetry, setHyperTelemetry] = useState<HyperTelemetry | null>(null);
+  const [hyperLevel, setHyperLevelState] = useState(1);
+  const [hyperFoldPct, setHyperFoldPct] = useState(100);
+  const [hyperCones, setHyperCones] = useState(false);
+  const [hyperExo, setHyperExo] = useState(false);
+  const [hyperMass, setHyperMass] = useState(1);
+  const [hyperLensing, setHyperLensing] = useState(1);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -33,6 +74,9 @@ export default function App() {
         setQuantumLabOpen(false);
       } else if (e.key === 'q' || e.key === 'Q') {
         setQuantumLabOpen((prev) => !prev);
+      } else if (e.key === 't' || e.key === 'T') {
+        setQuantumLabOpen(true);
+        setActiveTab('hyperfold');
       }
     };
     const handleResize = () => {
@@ -58,12 +102,20 @@ export default function App() {
             multiHit?: boolean;
             activeCages?: number;
           };
+          getHyperTelemetry?: () => HyperTelemetry;
         };
       };
       if (win.wizardChess?.getQuantumTelemetry) {
         const telem = win.wizardChess.getQuantumTelemetry();
         if (telem?.pairsList) {
           setEntangledPairs(telem.pairsList);
+        }
+      }
+      if (win.wizardChess?.getHyperTelemetry) {
+        const hyperTelem = win.wizardChess.getHyperTelemetry();
+        if (hyperTelem) {
+          setHyperTelemetry(hyperTelem);
+          setHyperCones(Boolean(hyperTelem.conesRevealed));
         }
       }
     }, 800);
@@ -133,6 +185,76 @@ export default function App() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  //  Hyperfold / tesseract controls
+  // ---------------------------------------------------------------------------
+  const hyperApi = () =>
+    (window as unknown as {
+      wizardChess?: {
+        hyper?: unknown;
+        setHyperLevel?: (i: number, moveCamera?: boolean) => HyperTelemetry;
+        setHyperFold?: (v: number) => number;
+        setHyperActive?: (v: boolean) => boolean;
+        toggleApexisCones?: (force?: boolean) => boolean;
+        toggleHyperExo?: (force?: boolean) => boolean;
+        setHyperLensing?: (v: number) => number;
+        setHyperMass?: (v: number) => number;
+        hyperPulse?: () => boolean;
+        hyperCamera?: (mode?: string) => unknown;
+        getHyperTelemetry?: () => HyperTelemetry;
+        setCameraPreset?: (preset: string) => void;
+      };
+    }).wizardChess;
+
+  const handleHyperLevel = (index: number) => {
+    setHyperLevelState(index);
+    setHyperFoldPct(index === 0 ? 0 : 100);
+    const api = hyperApi();
+    const telem = api?.setHyperLevel?.(index, true);
+    if (telem) setHyperTelemetry(telem);
+  };
+
+  const handleHyperFold = (value: number) => {
+    setHyperFoldPct(value);
+    hyperApi()?.setHyperFold?.(value / 100);
+  };
+
+  const handleHyperCamera = (mode: string) => {
+    const api = hyperApi();
+    if (api?.hyperCamera) {
+      api.hyperCamera(mode);
+      return;
+    }
+    api?.setCameraPreset?.(mode);
+  };
+
+  const handleHyperCones = () => {
+    const next = hyperApi()?.toggleApexisCones?.();
+    if (typeof next === 'boolean') setHyperCones(next);
+  };
+
+  const handleHyperExo = () => {
+    const next = hyperApi()?.toggleHyperExo?.();
+    if (typeof next === 'boolean') setHyperExo(next);
+  };
+
+  const handleHyperPulse = () => {
+    hyperApi()?.hyperPulse?.();
+  };
+
+  const handleHyperMass = (value: number) => {
+    setHyperMass(value);
+    hyperApi()?.setHyperMass?.(value);
+  };
+
+  const handleHyperLensing = (value: number) => {
+    setHyperLensing(value);
+    hyperApi()?.setHyperLensing?.(value);
+  };
+
+  const hyper = hyperTelemetry;
+  const hyperLevelInfo = HYPER_LEVEL_INFO[Math.max(0, Math.min(5, hyper?.level ?? hyperLevel))];
+
   return (
     <>
       <div id="loading-overlay">
@@ -140,7 +262,7 @@ export default function App() {
         <div className="loader-bar-wrap">
           <div className="loader-bar" id="loader-bar"></div>
         </div>
-        <div id="loader-text">Summoning Sanctum Architecture &amp; Hodge Cage Quantum Shells...</div>
+        <div id="loader-text">Summoning Sanctum Architecture • Folding the Six-Board Hyperfold • Igniting the Apex Singularity...</div>
       </div>
 
       <div id="canvas-container"></div>
@@ -176,6 +298,23 @@ export default function App() {
             <span>Quantum Lab</span>
             <span className="quantum-tag-badge">
               {entangledPairs.length > 0 ? `${entangledPairs.length} Entangled` : 'Active'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={`hud-btn hyper-pill ${quantumLabOpen && activeTab === 'hyperfold' ? 'active' : ''}`}
+            id="btn-hyper-pill"
+            onClick={() => {
+              setQuantumLabOpen(true);
+              setActiveTab('hyperfold');
+            }}
+            title="Open the Hyperfold Tesseract [Shortcut: T]"
+          >
+            <span className="hyper-sigil">⟁</span>
+            <span>Hyperfold</span>
+            <span className="hyper-tag-badge">
+              L{hyperTelemetry?.level ?? hyperLevel} · {hyperTelemetry?.foldDegrees ?? 90}°
             </span>
           </button>
         </div>
@@ -276,6 +415,20 @@ export default function App() {
             ✦ Open Quantum Lab
           </button>
 
+          <button
+            type="button"
+            className="hud-btn"
+            id="btn-open-hyperfold"
+            title="Open the Hyperfold six-board tesseract laboratory"
+            onClick={() => {
+              setQuantumLabOpen(true);
+              setActiveTab('hyperfold');
+              setMobileSheetOpen(false);
+            }}
+          >
+            ⟁ Hyperfold Tesseract
+          </button>
+
           <div className="hud-divider" aria-hidden="true"></div>
           <div className="mobile-sheet-section-label">Game Actions</div>
 
@@ -359,7 +512,7 @@ export default function App() {
 
       <div id="hud-bottom">
         <div className="hint-pill" id="controls-hint">
-          <strong>Controls:</strong> Click Piece to Attack &nbsp;•&nbsp; Left-Drag: Orbit &nbsp;•&nbsp; Right-Drag: Pan &nbsp;•&nbsp; Scroll: Zoom &nbsp;•&nbsp; WASD: Fly &nbsp;•&nbsp; Q: Quantum Lab &nbsp;•&nbsp; H: Hide UI
+          <strong>Controls:</strong> Click Piece to Attack &nbsp;•&nbsp; Left-Drag: Orbit &nbsp;•&nbsp; Right-Drag: Pan &nbsp;•&nbsp; Scroll: Zoom &nbsp;•&nbsp; WASD: Fly &nbsp;•&nbsp; Q: Quantum Lab &nbsp;•&nbsp; T: Hyperfold &nbsp;•&nbsp; H: Hide UI
         </div>
         <div className="captured-pill" id="captured-tray"></div>
       </div>
@@ -372,7 +525,7 @@ export default function App() {
             <div>
               <div className="quantum-dock-title">Quantum Physics Laboratory</div>
               <div className="quantum-dock-subtitle">
-                Hodge Cage Electron Fields • Piece-Specific Sonic Booms • Decoherence Scalars • Bell-State Entanglement
+                Hodge Cage Electron Fields • Sonic Booms • Decoherence Scalars • Entanglement • Six-Board Hyperfold Tesseract
               </div>
             </div>
           </div>
@@ -417,6 +570,14 @@ export default function App() {
             onClick={() => setActiveTab('entangle')}
           >
             🔗 Quantum Entanglement ({entangledPairs.length})
+          </button>
+          <button
+            type="button"
+            className={`quantum-tab-btn hyper-tab-btn ${activeTab === 'hyperfold' ? 'active' : ''}`}
+            id="quantum-tab-hyperfold"
+            onClick={() => setActiveTab('hyperfold')}
+          >
+            ⟁ Hyperfold ({hyperTelemetry?.level ?? hyperLevel})
           </button>
         </div>
 
@@ -699,6 +860,239 @@ export default function App() {
                   • Catastrophic entanglement rupture if twin collapses
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 5: Hyperfold — six folded boards, apex cones & the tesseract */}
+        {activeTab === 'hyperfold' && (
+          <div className="quantum-tab-content hyper-tab-content">
+            <div className="quantum-info-card hyper-info-card">
+              <div className="quantum-info-heading">⟁ HYPERFOLD · Six Observers, One Wave Function</div>
+              <p>
+                The altar board is unfolded into a six-board cube net and folded back up into a
+                box. Every face carries the <strong>live</strong> board: strike on any face and
+                the single wave function collapses identically on all six. At the centre sits the{' '}
+                <strong>Apex Singularity</strong> — a black hole fed by six unseen apex cones.
+                Climb the ladder to step <em>inside</em> the projected tesseract, then out past it.
+              </p>
+              <div className="hyper-readout-inline">
+                <span className="hyper-readout-tag">LEVEL {hyper?.level ?? hyperLevel}</span>
+                <span className="hyper-readout-name">{hyper?.levelName ?? hyperLevelInfo.name}</span>
+                <span className="hyper-readout-quote">
+                  “{hyper?.tagline ?? hyperLevelInfo.sub}”
+                </span>
+              </div>
+            </div>
+
+            <div className="hyper-level-ladder" id="hyper-level-chips">
+              {HYPER_LEVEL_INFO.map((lvl) => (
+                <button
+                  key={lvl.id}
+                  type="button"
+                  id={`btn-hyper-level-${lvl.id}`}
+                  className={`hyper-level-chip ${(hyper?.level ?? hyperLevel) === lvl.id ? 'active' : ''}`}
+                  onClick={() => handleHyperLevel(lvl.id)}
+                >
+                  <span className="hyper-level-sigil">{lvl.sigil}</span>
+                  <span className="hyper-level-name">{lvl.name}</span>
+                  <span className="hyper-level-sub">{lvl.sub}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="hyper-grid">
+              <div className="quantum-option-box hyper-box">
+                <div className="option-label">Fold Kinematics</div>
+                <div className="option-sub">
+                  0% is the flat cube net — the same board repeated left, right and beyond.
+                  100% closes the six faces into the inward-facing box.
+                </div>
+                <div className="hyper-slider-row">
+                  <input
+                    id="hyper-fold-range"
+                    className="hyper-slider"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={hyperFoldPct}
+                    onChange={(e) => handleHyperFold(Number(e.target.value))}
+                    aria-label="Fold the six-board net"
+                  />
+                  <span className="hyper-slider-value">
+                    {hyperFoldPct}% · {Math.round(hyperFoldPct * 0.9)}°
+                  </span>
+                </div>
+                <div className="hyper-btn-row">
+                  <button
+                    type="button"
+                    className="quantum-action-btn active"
+                    id="btn-hyper-enter"
+                    onClick={() => handleHyperLevel(2)}
+                  >
+                    ⟁ Enter the Box
+                  </button>
+                  <button
+                    type="button"
+                    className="quantum-action-btn"
+                    id="btn-hyper-core"
+                    onClick={() => handleHyperCamera('core')}
+                  >
+                    ◉ Dive to the Core
+                  </button>
+                  <button
+                    type="button"
+                    className="quantum-action-btn"
+                    id="btn-hyper-outside"
+                    onClick={() => handleHyperLevel(4)}
+                  >
+                    ⟐ Step Outside
+                  </button>
+                  <button
+                    type="button"
+                    className="quantum-action-btn secondary"
+                    id="btn-hyper-unfold"
+                    onClick={() => handleHyperFold(hyperFoldPct > 50 ? 0 : 100)}
+                  >
+                    {hyperFoldPct > 50 ? 'Unfold the Net' : 'Fold the Box'}
+                  </button>
+                </div>
+                <div className="hyper-btn-row">
+                  <button
+                    type="button"
+                    className={`quantum-action-btn ${hyperCones ? 'active' : ''}`}
+                    id="btn-hyper-cones"
+                    onClick={handleHyperCones}
+                  >
+                    {hyperCones ? 'Hide Apexis Cones' : 'Reveal Apexis Cones'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`quantum-action-btn ${hyperExo ? 'active' : ''}`}
+                    id="btn-hyper-exo"
+                    onClick={handleHyperExo}
+                  >
+                    {hyperExo ? 'Mirror Inside Only' : 'Mirror to Outer Shell'}
+                  </button>
+                  <button
+                    type="button"
+                    className="quantum-action-btn active"
+                    id="btn-hyper-pulse"
+                    onClick={handleHyperPulse}
+                  >
+                    ✦ Gravity Pulse
+                  </button>
+                </div>
+              </div>
+
+              <div className="quantum-option-box hyper-box">
+                <div className="option-label">Apex Singularity Scalars</div>
+                <div className="option-sub">
+                  Mass stretches the photon sphere; lensing bends the light of the fourth
+                  dimension around the horizon.
+                </div>
+                <div className="hyper-slider-row">
+                  <label className="hyper-slider-label" htmlFor="hyper-mass-range">
+                    Mass
+                  </label>
+                  <input
+                    id="hyper-mass-range"
+                    className="hyper-slider"
+                    type="range"
+                    min={20}
+                    max={250}
+                    step={1}
+                    value={Math.round(hyperMass * 100)}
+                    onChange={(e) => handleHyperMass(Number(e.target.value) / 100)}
+                  />
+                  <span className="hyper-slider-value">{hyperMass.toFixed(2)} M☉</span>
+                </div>
+                <div className="hyper-slider-row">
+                  <label className="hyper-slider-label" htmlFor="hyper-lens-range">
+                    Lens
+                  </label>
+                  <input
+                    id="hyper-lens-range"
+                    className="hyper-slider"
+                    type="range"
+                    min={0}
+                    max={300}
+                    step={1}
+                    value={Math.round(hyperLensing * 100)}
+                    onChange={(e) => handleHyperLensing(Number(e.target.value) / 100)}
+                  />
+                  <span className="hyper-slider-value">{hyperLensing.toFixed(2)}×</span>
+                </div>
+                <div className="hyper-telemetry" id="hyper-telemetry">
+                  <div className="hyper-stat">
+                    <span className="hyper-stat-key">Observers</span>
+                    <span className="hyper-stat-val">{hyper?.boards ?? 6} faces · all playable</span>
+                  </div>
+                  <div className="hyper-stat">
+                    <span className="hyper-stat-key">Fold</span>
+                    <span className="hyper-stat-val">
+                      {hyper ? `${hyper.foldDegrees}°` : '90°'}
+                    </span>
+                  </div>
+                  <div className="hyper-stat">
+                    <span className="hyper-stat-key">Ψ Mass</span>
+                    <span className="hyper-stat-val">
+                      {hyper ? hyper.mass.toFixed(2) : '0.55'} · shadow r≈{(0.052 * 2.2 * (0.78 + (hyper?.mass ?? 0.55) * 0.26)).toFixed(2)}m
+                    </span>
+                  </div>
+                  <div className="hyper-stat">
+                    <span className="hyper-stat-key">Lensing</span>
+                    <span className="hyper-stat-val">{hyper ? hyper.lensing.toFixed(2) : '0.24'}×</span>
+                  </div>
+                  <div className="hyper-stat">
+                    <span className="hyper-stat-key">Tesseract</span>
+                    <span className="hyper-stat-val">
+                      {hyper ? Math.round(hyper.tesseractOpacity * 100) : 14}% cell opacity
+                    </span>
+                  </div>
+                  <div className="hyper-stat">
+                    <span className="hyper-stat-key">Photon stream</span>
+                    <span className="hyper-stat-val">{hyper?.photons ?? 780} geodesics</span>
+                  </div>
+                  <div className="hyper-stat">
+                    <span className="hyper-stat-key">Apexis cones</span>
+                    <span className="hyper-stat-val">
+                      {hyperCones || (hyper?.coneOpacity ?? 0) > 0.05 ? 'partially visible' : 'hidden (by design)'}
+                    </span>
+                  </div>
+                  <div className="hyper-stat">
+                    <span className="hyper-stat-key">4D spin</span>
+                    <span className="hyper-stat-val">{hyper ? hyper.spin.toFixed(2) : '0.34'} rad/s</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="hyper-observers">
+              {(hyper?.observables ?? ['BASE', 'SOUTH', 'EAST', 'NORTH', 'WEST', 'LID']).map(
+                (name, idx) => (
+                  <div className="hyper-observer-card" key={name}>
+                    <span className="hyper-observer-index">{['I', 'II', 'III', 'IV', 'V', 'VI'][idx]}</span>
+                    <span className="hyper-observer-name">{name}</span>
+                    <span className="hyper-observer-state">
+                      {activeTab === 'hyperfold' && (hyper?.level ?? hyperLevel) >= 4 && idx > 0
+                        ? 'exterior shell'
+                        : 'inside shell'}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+
+            <div className="quantum-info-card hyper-info-card">
+              <div className="quantum-info-heading">Playable from every face</div>
+              <p>
+                Ray-cast any folded plate to select and move pieces — the six observers resolve to
+                the same canonical square. Cameras: <strong>Enter the Box</strong> (inside),
+                <strong> Dive to the Core</strong> (next to the horizon), <strong>Step Outside</strong>{' '}
+                (past the outer tesseract). Shortcut <strong>T</strong> reopens this laboratory.
+              </p>
             </div>
           </div>
         )}

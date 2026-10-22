@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      // Allow the Arena/E2B preview proxy host + any sandbox preview domain.
+      allowedHosts: true,
+      cors: true,
     },
     plugins: [react()],
     resolve: {
