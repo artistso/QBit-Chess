@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { QuantumPhysicsEngine, quantumAudio } from './quantumEngine.js';
+import { HyperfoldEngine } from './hyperfoldEngine.js';
 
 /** @type {any} */
 const THREE = THREE_NS;
@@ -1443,6 +1444,29 @@ export function initWizardChess() {
     let gameOver = false;
     let capturedByWhite = 0;
     let capturedByBlack = 0;
+    let lastMoveInfo = null;
+
+    // =========================================================================
+    // HYPERFOLD: six folded observers of the same wave function
+    // =========================================================================
+    // A classic six-board cube net is folded into a box whose centre is the
+    // Apex Singularity. Every face shows the LIVE board, every face is playable,
+    // the hidden apex cones converge on the hole, and the levels climb from the
+    // inside of a projected tesseract out to its exterior.
+    const hyperEngine = new HyperfoldEngine({
+      scene,
+      camera,
+      side: 2.2,
+      center: new THREE.Vector3(0, 3.05, 0),
+      getBoardState: () => boardState,
+      getSelection: () => ({
+        selected: selectedSquare,
+        validMoves,
+        turn: currentTurn,
+        lastMove: lastMoveInfo
+      }),
+      onLevelChange: null
+    });
 
     // Mode & Player Configuration
     let gameMode = 'single'; // 'single' | 'multi'
@@ -1768,6 +1792,7 @@ export function initWizardChess() {
       gameOver = false;
       capturedByWhite = 0;
       capturedByBlack = 0;
+      lastMoveInfo = null;
       moveHistory = [];
       scriptDeviated = false;
       if (!preserveScript) {
@@ -1792,6 +1817,7 @@ export function initWizardChess() {
       renderer.shadowMap.needsUpdate = true;
       updateTurnUI();
       if (typeof updateScriptBarUI === 'function') updateScriptBarUI();
+      hyperEngine.refreshFaces();
       maybeScheduleAIMove();
     }
 
@@ -2096,6 +2122,17 @@ export function initWizardChess() {
       if (preMoveHighlightTask) {
         preMoveHighlightTask = null;
       }
+
+      lastMoveInfo = {
+        fromR,
+        fromC,
+        toR,
+        toC,
+        color: piece.color,
+        pieceType: piece.type,
+        capture: Boolean(targetOnDest)
+      };
+      hyperEngine.refreshFaces();
 
       // Save board state snapshot (including pre-move scriptCursor & scriptDeviated) so Left Arrow / [ can step backward & re-record
       moveHistory.push({
@@ -3796,30 +3833,39 @@ export function initWizardChess() {
         }
       }
 
-      const hits = raycaster.intersectObjects([...pieceMeshes, ...boardSquareMeshes], true);
-      if (hits.length === 0) {
-        if (preMoveHighlightTask) preMoveHighlightTask = null;
-        clearSquareHighlights();
-        selectedSquare = null;
-        validMoves = [];
-        return;
-      }
-
       let clickedR = -1;
       let clickedC = -1;
-      let obj = hits[0].object;
-      while (obj) {
-        if (obj.userData && obj.userData.piece) {
-          clickedR = obj.userData.piece.r;
-          clickedC = obj.userData.piece.c;
-          break;
+
+      // The Hyperfold shell is a set of PLAYABLE observers: a click on any of
+      // the six folded board faces resolves to the same canonical square.
+      const hyperCell = hyperEngine.raycast(raycaster);
+      if (hyperCell) {
+        clickedR = hyperCell.r;
+        clickedC = hyperCell.c;
+      } else {
+        const hits = raycaster.intersectObjects([...pieceMeshes, ...boardSquareMeshes], true);
+        if (hits.length === 0) {
+          if (preMoveHighlightTask) preMoveHighlightTask = null;
+          clearSquareHighlights();
+          selectedSquare = null;
+          validMoves = [];
+          return;
         }
-        if (obj.userData && obj.userData.isSquare) {
-          clickedR = obj.userData.r;
-          clickedC = obj.userData.c;
-          break;
+
+        let obj = hits[0].object;
+        while (obj) {
+          if (obj.userData && obj.userData.piece) {
+            clickedR = obj.userData.piece.r;
+            clickedC = obj.userData.piece.c;
+            break;
+          }
+          if (obj.userData && obj.userData.isSquare) {
+            clickedR = obj.userData.r;
+            clickedC = obj.userData.c;
+            break;
+          }
+          obj = obj.parent;
         }
-        obj = obj.parent;
       }
 
       if (clickedR === -1) return;
@@ -4255,6 +4301,22 @@ export function initWizardChess() {
           // White's wide Cathedral perspective looking North toward the Rose Window (chessboard centered in frame)
           smoothCameraTo(new THREE.Vector3(0, 2.55, 6.65), new THREE.Vector3(0, 1.95, -2.50), 0.85);
         }
+      } else if (preset === 'sanctum') {
+        // Establishing shot: the altar board below, the six-board Hyperfold
+        // reliquary floating above it with the Apex Singularity at its heart.
+        setActiveCamButton(null);
+        const zSign = playerColor === 'b' ? -1 : 1;
+        smoothCameraTo(new THREE.Vector3(0, 4.6, zSign * 6.2), new THREE.Vector3(0, 2.0, 0), 1.05);
+      } else if (preset === 'hyper' || preset === 'core' || preset === 'tesseract' || preset === 'exterior') {
+        setActiveCamButton(null);
+        const pose = hyperEngine.getCameraPose(
+          preset === 'tesseract' ? 'level' : preset === 'core' ? 'core' : preset === 'exterior' ? 'exterior' : 'hyper'
+        );
+        smoothCameraTo(
+          new THREE.Vector3(pose.position[0], pose.position[1], pose.position[2]),
+          new THREE.Vector3(pose.target[0], pose.target[1], pose.target[2]),
+          0.95
+        );
       } else if (preset === 'white_backdrop') {
         smoothCameraTo(new THREE.Vector3(0, 2.35, -3.10), new THREE.Vector3(0, 2.20, 8.50), 0.85);
       } else if (preset === 'vaults') {
@@ -4456,6 +4518,43 @@ export function initWizardChess() {
     window.wizardChess = {
       quantum: quantumEngine,
       quantumAudio: quantumAudio,
+      hyper: hyperEngine,
+      // --- Hyperfold / tesseract control surface -----------------------------
+      setHyperLevel: (index, moveCamera = true) => {
+        const telem = hyperEngine.setLevel(index, { immediate: false });
+        if (moveCamera) {
+          const pose = hyperEngine.getCameraPose('level');
+          smoothCameraTo(
+            new THREE.Vector3(pose.position[0], pose.position[1], pose.position[2]),
+            new THREE.Vector3(pose.target[0], pose.target[1], pose.target[2]),
+            1.0
+          );
+        }
+        return telem;
+      },
+      setHyperFold: (value) => {
+        hyperEngine.setFold(value);
+        return hyperEngine.foldTarget;
+      },
+      setHyperActive: (active) => {
+        hyperEngine.setVisible(Boolean(active));
+        if (!active) {
+          hyperEngine.setLevel(0, { immediate: true });
+        } else if (hyperEngine.levelIndex === 0) {
+          hyperEngine.setLevel(1);
+        }
+        return hyperEngine.visible;
+      },
+      toggleApexisCones: (force) => hyperEngine.setCones(force),
+      toggleHyperExo: (force) => hyperEngine.setExo(force),
+      setHyperLensing: (value) => hyperEngine.setLensingBoost(value),
+      setHyperMass: (value) => hyperEngine.setMass(value),
+      hyperPulse: () => hyperEngine.pulse(),
+      getHyperTelemetry: () => hyperEngine.getTelemetry(),
+      hyperCamera: (mode = 'hyper') => {
+        setCameraPreset(mode);
+        return hyperEngine.getCameraPose(mode === 'tesseract' ? 'level' : mode);
+      },
       toggleHodgeCages: (force) => {
         const next = typeof force === 'boolean' ? force : !quantumEngine.hodgeCageVisible;
         quantumEngine.setHodgeCageVisibility(next);
@@ -4793,6 +4892,9 @@ export function initWizardChess() {
       // Advance Quantum Engine (Hodge Cages, electron orbitals, sonic booms, entanglement ribbons)
       quantumEngine.update(dt);
 
+      // Advance the Hyperfold shell (six observers, apex cones, singularity, tesseract light)
+      hyperEngine.update(dt);
+
       // Feature 3c: Advance pre-move piece selection & valid-squares highlight beat before executing scripted move
       if (preMoveHighlightTask && !isAnimatingMove) {
         preMoveHighlightTask.elapsedSim += dt;
@@ -5037,6 +5139,10 @@ export function initWizardChess() {
         playerColor = 'b';
       }
       resetChessBoard(true, true);
+      // Open on the Hyperfold establishing shot so the floating six-board
+      // reliquary and its singularity are immediately in frame. The classic
+      // close-up remains one click away on Player Cam.
+      setCameraPreset('sanctum');
       if (navigator.webdriver) {
         window.wizardChess.stepBy(0.9, 15);
       } else {
